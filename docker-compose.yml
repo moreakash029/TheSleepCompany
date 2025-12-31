@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  oms-service:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://otel-collector:4318/v1/metrics
+      - SERVICE_NAME=oms-service
+    depends_on:
+      - otel-collector
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: signoz-clickhouse
+    ports:
+      - '8123:8123'
+      - '9000:9000'
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_log:/var/log/clickhouse-server
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    mem_limit: 1g
+    environment:
+      - CLICKHOUSE_DB=signoz_traces
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: signoz-otel-collector
+    command: ['--config=/etc/otel-collector-config.yaml']
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - '4317:4317'
+      - '4318:4318'
+      - '8888:8888'
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  signoz:
+    image: signoz/signoz:latest
+    container_name: signoz
+    ports:
+      - '8080:8080'
+      - '3301:3301'
+    environment:
+      - SIGNOZ_FRONTEND_PORT=8080
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=9000
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+      - CLICKHOUSE_DB=signoz_traces
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+volumes:
+  clickhouse_data:
+  clickhouse_log:

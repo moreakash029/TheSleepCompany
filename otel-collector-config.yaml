@@ -1,0 +1,24 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  clickhouse:
+    endpoint: "tcp://clickhouse:9000"
+    database: "signoz"
+    username: "signoz"
+    password: "signoz"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [otlp]
+      exporters: [clickhouse]
+    logs:
+      receivers: [otlp]
+      exporters: [clickhouse]
