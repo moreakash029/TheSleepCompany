@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   oms-service:
     build: .
@@ -28,6 +26,13 @@ services:
     mem_limit: 1g
     environment:
       - CLICKHOUSE_DB=signoz_traces
+      - CLICKHOUSE_USER=signoz
+      - CLICKHOUSE_PASSWORD=signoz
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -43,25 +48,37 @@ services:
       clickhouse:
         condition: service_healthy
 
-  signoz:
-    image: signoz/signoz:latest
-    container_name: signoz
+  query-service:
+    image: signoz/query-service:latest
+    container_name: signoz-query-service
+    command: ["-config=/root/config/prometheus.yml"]
     ports:
       - '8080:8080'
-      - '3301:3301'
+      - '6060:6060'
+    volumes:
+      - ./signoz-config.yaml:/root/config/prometheus.yml
+      - query_service_data:/var/lib/signoz
     environment:
-      - SIGNOZ_FRONTEND_PORT=8080
-      - CLICKHOUSE_HOST=clickhouse
-      - CLICKHOUSE_PORT=9000
-      - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=
-      - CLICKHOUSE_DB=signoz_traces
+      - ClickHouseUrl=tcp://clickhouse:9000
+      - STORAGE=clickhouse
+      - GODEBUG=netdns=go
+      - TELEMETRY_ENABLED=true
+      - DEPLOYMENT_TYPE=docker-standalone-amd
     depends_on:
       clickhouse:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
+
+  frontend:
+    image: signoz/frontend:latest
+    container_name: signoz-frontend
+    ports:
+      - '3301:3301'
+    environment:
+      - FRONTEND_API_ENDPOINT=http://query-service:8080
+    depends_on:
+      - query-service
 
 volumes:
   clickhouse_data:
   clickhouse_log:
+  query_service_data:
