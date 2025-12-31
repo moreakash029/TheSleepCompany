@@ -19,7 +19,7 @@ export class HealthController {
   check() {
     return this.health.check([
       () => this.http.pingCheck('nestjs-docs', 'https://docs.nestjs.com'),
-      () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024), // 150MB limit
+      () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
     ]);
   }
 }
